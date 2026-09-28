@@ -266,9 +266,11 @@ input, select { font: inherit; color: inherit; }
 .tip-gain { flex: none; min-width: 56px; text-align: center; font-weight: 700; color: var(--good); background: var(--good-soft); padding: 6px 8px; border-radius: 8px; }
 .breakdown-full { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
 .breakdown-full table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-.breakdown-full caption { display: flex; justify-content: space-between; font-weight: 600; padding-bottom: 6px; border-bottom: 2px solid var(--text); text-align: left; }
-.breakdown-full th { text-align: left; font-weight: 400; padding: 6px 0; }
-.breakdown-full td { text-align: right; padding: 6px 0 6px 8px; font-weight: 600; width: 1%; white-space: nowrap; }
+.breakdown-full thead th { font-weight: 600; padding: 0 0 6px; border-bottom: 2px solid var(--text); text-align: left; }
+.breakdown-full thead th + th { text-align: right; white-space: nowrap; }
+.breakdown-full { align-items: start; }
+.breakdown-full tbody th { text-align: left; font-weight: 400; padding: 7px 0; vertical-align: top; }
+.breakdown-full td { text-align: right; padding: 7px 0 7px 8px; font-weight: 600; width: 1%; white-space: nowrap; }
 .breakdown-full td.muted { font-weight: 400; }
 .breakdown-full tr { border-bottom: 1px solid var(--border); }
 .breakdown-full tr.zero th, .breakdown-full tr.zero td:first-of-type { color: var(--text-3); }
@@ -464,3 +466,6 @@ input, select { font: inherit; color: inherit; }
 @media print {
   .scenario-bar, .banner-slot, .toast { display: none !important; }
 }
+
+.breakdown-full th .line-hint { display: block; font-size: 12px; color: var(--text-3); margin-top: 1px; }
+.breakdown-full td { vertical-align: top; }

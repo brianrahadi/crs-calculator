@@ -66,6 +66,31 @@ describe('calculate', () => {
   });
 });
 
+describe('line hints', () => {
+  const hint = (r: ReturnType<typeof calculate>, label: string) =>
+    r.sections.flatMap((s) => s.lines).find((l) => l.label === label)!.hint;
+
+  it('explains what each line is based on', () => {
+    const r = calculate(profile({ age: 29, education: 'masters', firstLanguage: clb(9), foreignWork: 3, canadianWork: 2 }));
+    expect(hint(r, 'Age')).toBe('29 years old — ages 20–29 earn the maximum');
+    expect(hint(r, 'Level of education')).toBe("Master's / professional degree");
+    expect(hint(r, 'First official language')).toBe('CLB 9 in all 4 abilities');
+    expect(hint(r, 'Canadian work experience')).toBe('2 years of skilled work in Canada');
+    expect(hint(r, 'Education + language / Canadian work')).toBe(
+      "Master's / professional degree: CLB 9+ → 50, 2+ yrs Canadian work → 50 · capped at 50",
+    );
+    expect(hint(r, 'Second official language')).toBe('No second-language test');
+  });
+
+  it('shows per-ability levels when they differ', () => {
+    const r = calculate(profile({
+      age: 35,
+      firstLanguage: { test: 'ielts', clbLanguage: 'en', scores: { listening: '8', reading: '6', writing: '6.5', speaking: '7' } },
+    }));
+    expect(hint(r, 'First official language')).toBe('IELTS · CLB L9 R7 W8 S9');
+  });
+});
+
 describe('toClb', () => {
   it('converts IELTS bands', () => {
     expect(toClb('ielts', 'listening', '8')).toBe(9);

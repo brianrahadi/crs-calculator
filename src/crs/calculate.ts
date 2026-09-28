@@ -1,5 +1,5 @@
-import { clbLevels, languageOf } from './language';
-import type { CrsResult, Education, Line, Profile, Section, Skill } from './types';
+import { clbLevels, languageOf, testInfo } from './language';
+import type { CrsResult, Education, LanguageResult, Line, Profile, Section, Skill } from './types';
 import { SKILLS } from './types';
 
 /*
@@ -45,6 +45,18 @@ export const EDUCATION_LABELS: Record<Education, string> = {
   doctoral: 'Doctoral degree (PhD)',
 };
 
+/** Compact education names for explanations. */
+const EDUCATION_SHORT: Record<Education, string> = {
+  none: 'Less than secondary school',
+  secondary: 'Secondary diploma',
+  oneYear: 'One-year program',
+  twoYear: 'Two-year program',
+  bachelors: "Bachelor's / 3+ year program",
+  twoOrMore: 'Two+ credentials (one 3+ years)',
+  masters: "Master's / professional degree",
+  doctoral: 'Doctoral degree (PhD)',
+};
+
 const CANADIAN_WORK: Pair[] = [[0, 0], [35, 40], [46, 53], [56, 64], [63, 72], [70, 80]];
 const SPOUSE_CANADIAN_WORK = [0, 5, 7, 8, 9, 10];
 
@@ -83,6 +95,42 @@ export function minLevelIn(p: Profile, lang: 'en' | 'fr') {
   return result ? minOf(clbLevels(result)) : 0;
 }
 
+/* ---------- Plain-language explanations for each line ---------- */
+
+const years = (n: number, plusAt: number) =>
+  n === 0 ? 'none' : n >= plusAt ? `${plusAt}+ years` : `${n} year${n > 1 ? 's' : ''}`;
+
+function ageHint(age: number | null) {
+  if (age == null) return 'Age not entered';
+  if (age < 18) return `${age} years old — under 18 earns no age points`;
+  if (age >= 45) return `${age} years old — 45+ earns no age points`;
+  if (age >= 20 && age <= 29) return `${age} years old — ages 20–29 earn the maximum`;
+  if (age >= 30) return `${age} years old — points drop each year after 29`;
+  return `${age} years old`;
+}
+
+function languageHint(r: LanguageResult, levels: Record<Skill, number>) {
+  if (!r.test) return 'No test entered';
+  const unit = languageOf(r) === 'fr' ? 'NCLC' : 'CLB';
+  const test = r.test === 'clb' ? '' : `${testInfo(r.test).short} · `;
+  const values = SKILLS.map((s) => levels[s]);
+  const show = (v: number) => (v === 0 ? '<4' : String(v));
+  if (values.every((v) => v === values[0])) {
+    return values[0] === 0 ? `${test}below ${unit} 4 in all abilities` : `${test}${unit} ${values[0]} in all 4 abilities`;
+  }
+  return `${test}${unit} L${show(levels.listening)} R${show(levels.reading)} W${show(levels.writing)} S${show(levels.speaking)}`;
+}
+
+const clbBand = (min: number) => (min >= 9 ? 'CLB 9+' : min >= 7 ? 'CLB 7–8' : 'CLB below 7');
+const cdnBand = (y: number) => (y >= 2 ? '2+ yrs Canadian work' : y === 1 ? '1 yr Canadian work' : 'no Canadian work');
+
+/** "A → 25, B → 13 · max 50" — each pairing's points, noting when the 50 cap applies. */
+function comboHint(prefix: string, parts: [string, number][], cap = 50) {
+  const total = parts.reduce((a, [, v]) => a + v, 0);
+  const body = parts.map(([k, v]) => `${k} → ${v}`).join(', ');
+  return `${prefix}: ${body}${total > cap ? ` · capped at ${cap}` : ''}`;
+}
+
 export function hasSpouseFactor(p: Profile) {
   return p.married && !p.spouseIsCanadian && p.spouseAccompanying;
 }
@@ -110,11 +158,16 @@ export function calculate(p: Profile): CrsResult {
     max: coreMax,
     points: 0,
     lines: [
-      { label: 'Age', points: age, max: withSpouse ? 100 : 110 },
-      { label: 'Level of education', points: education, max: withSpouse ? 140 : 150 },
-      { label: 'First official language', points: firstLang, max: withSpouse ? 128 : 136 },
-      { label: 'Second official language', points: secondLang, max: secondMax },
-      { label: 'Canadian work experience', points: cdnWork, max: withSpouse ? 70 : 80 },
+      { label: 'Age', points: age, max: withSpouse ? 100 : 110, hint: ageHint(p.age) },
+      { label: 'Level of education', points: education, max: withSpouse ? 140 : 150, hint: p.education ? EDUCATION_SHORT[p.education] : 'Education not entered' },
+      { label: 'First official language', points: firstLang, max: withSpouse ? 128 : 136, hint: languageHint(p.firstLanguage, first) },
+      {
+        label: 'Second official language',
+        points: secondLang,
+        max: secondMax,
+        hint: second ? languageHint(p.secondLanguage, second) + (sumOf(second, secondLanguagePoints) > secondMax ? ` · capped at ${secondMax}` : '') : 'No second-language test',
+      },
+      { label: 'Canadian work experience', points: cdnWork, max: withSpouse ? 70 : 80, hint: p.canadianWork ? `${years(p.canadianWork, 5)} of skilled work in Canada` : 'No Canadian work experience' },
     ],
   };
 
@@ -127,9 +180,14 @@ export function calculate(p: Profile): CrsResult {
     points: 0,
     lines: withSpouse
       ? [
-          { label: 'Spouse education', points: p.spouseEducation ? SPOUSE_EDUCATION[p.spouseEducation] : 0, max: 10 },
-          { label: 'Spouse official language', points: spouseLevels ? sumOf(spouseLevels, spouseLanguagePoints) : 0, max: 20 },
-          { label: 'Spouse Canadian work experience', points: SPOUSE_CANADIAN_WORK[Math.min(p.spouseCanadianWork, 5)], max: 10 },
+          { label: 'Spouse education', points: p.spouseEducation ? SPOUSE_EDUCATION[p.spouseEducation] : 0, max: 10, hint: p.spouseEducation ? EDUCATION_SHORT[p.spouseEducation] : 'Not entered' },
+          { label: 'Spouse official language', points: spouseLevels ? sumOf(spouseLevels, spouseLanguagePoints) : 0, max: 20, hint: spouseLevels ? languageHint(p.spouseLanguage, spouseLevels) : 'No test entered' },
+          {
+            label: 'Spouse Canadian work experience',
+            points: SPOUSE_CANADIAN_WORK[Math.min(p.spouseCanadianWork, 5)],
+            max: 10,
+            hint: p.spouseCanadianWork ? `${years(p.spouseCanadianWork, 5)} of skilled work in Canada` : 'No Canadian work experience',
+          },
         ]
       : [],
   };
@@ -164,9 +222,32 @@ export function calculate(p: Profile): CrsResult {
     max: 100,
     points: 0,
     lines: [
-      { label: 'Education + language / Canadian work', points: educationTransfer, max: 50 },
-      { label: 'Foreign work + language / Canadian work', points: foreignTransfer, max: 50 },
-      { label: 'Trade certificate + language', points: tradeTransfer, max: 50 },
+      {
+        label: 'Education + language / Canadian work',
+        points: educationTransfer,
+        max: 50,
+        hint: !p.education
+          ? 'Education not entered'
+          : !postSecondary
+            ? 'Needs a post-secondary credential'
+            : comboHint(EDUCATION_SHORT[p.education], [[clbBand(firstMin), edLang], [cdnBand(p.canadianWork), edWork]]),
+      },
+      {
+        label: 'Foreign work + language / Canadian work',
+        points: foreignTransfer,
+        max: 50,
+        hint: fw === 0
+          ? 'No foreign work experience'
+          : comboHint(`${fw >= 3 ? '3+' : fw} yr${fw > 1 ? 's' : ''} foreign work`, [[clbBand(firstMin), fwLang], [cdnBand(p.canadianWork), fwWork]]),
+      },
+      {
+        label: 'Trade certificate + language',
+        points: tradeTransfer,
+        max: 50,
+        hint: !p.tradeCertificate
+          ? 'No certificate of qualification'
+          : `Certificate of qualification with ${lang7 ? 'CLB 7+' : firstMin >= 5 ? 'CLB 5–6' : 'CLB below 5'}`,
+      },
     ],
   };
 
@@ -182,10 +263,22 @@ export function calculate(p: Profile): CrsResult {
     max: 600,
     points: 0,
     lines: [
-      { label: 'Provincial nomination', points: p.provincialNomination ? 600 : 0, max: 600 },
-      { label: 'French-language skills', points: frenchBonus, max: 50 },
-      { label: 'Post-secondary study in Canada', points: studyBonus, max: 30 },
-      { label: 'Sibling in Canada', points: p.sibling ? 15 : 0, max: 15 },
+      { label: 'Provincial nomination', points: p.provincialNomination ? 600 : 0, max: 600, hint: p.provincialNomination ? 'Nominated by a province or territory' : 'No nomination' },
+      {
+        label: 'French-language skills',
+        points: frenchBonus,
+        max: 50,
+        hint: french >= 7
+          ? `NCLC 7+ French ${english >= 5 ? 'and CLB 5+ English' : 'with English below CLB 5'}`
+          : french > 0 ? `French at NCLC ${french} — needs NCLC 7+ in all abilities` : 'No French at NCLC 7+',
+      },
+      {
+        label: 'Post-secondary study in Canada',
+        points: studyBonus,
+        max: 30,
+        hint: p.canadianStudy === 'threePlus' ? "3+ year credential, master's or PhD from Canada" : p.canadianStudy === 'oneOrTwo' ? '1–2 year credential from Canada' : 'No Canadian credential',
+      },
+      { label: 'Sibling in Canada', points: p.sibling ? 15 : 0, max: 15, hint: p.sibling ? 'Sibling who is a citizen or permanent resident' : 'No sibling in Canada' },
     ],
   };
 

@@ -3,7 +3,7 @@ import type { Draw } from '../draws/aggregator';
 import { CATEGORY_LABELS } from '../draws/aggregator';
 import { formatDate } from './format';
 
-const W = 1200;
+const W = 1320;
 const C = {
   bg: '#f6f5f2',
   card: '#ffffff',
@@ -31,10 +31,14 @@ const SHORT: Record<string, string> = {
   'Post-secondary study in Canada': 'Study in Canada',
 };
 
-const COL_W = 310;
-const ROW_H = 30;
+const COL_W = 360;
+const COL_B_X = 460 + COL_W + 40;
+const LABEL_H = 28;
+const HINT_LINE_H = 18;
+const ROW_PAD = 10;
 const HEAD_H = 40;
 const SECTION_GAP = 26;
+const HINT_FONT = `400 13px ${FONT}`;
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -48,9 +52,38 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, max: number) {
   return `${t}…`;
 }
 
-type SectionView = { title: string; points: number; max: number; lines: { label: string; points: number; max: number }[] };
+type LineView = { label: string; points: number; max: number; hint?: string };
+type SectionView = { title: string; points: number; max: number; lines: LineView[] };
 
-const sectionHeight = (s: SectionView) => HEAD_H + Math.max(1, s.lines.length) * ROW_H;
+/** Word-wrap to at most `maxLines`, ellipsising whatever doesn't fit. */
+function wrap(ctx: CanvasRenderingContext2D, text: string, width: number, maxLines = 2) {
+  const lines: string[] = [];
+  let current = '';
+  for (const word of text.split(' ')) {
+    const next = current ? `${current} ${word}` : word;
+    if (ctx.measureText(next).width <= width || !current) current = next;
+    else {
+      lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines);
+    kept[maxLines - 1] = fitText(ctx, `${kept[maxLines - 1]} ${lines.slice(maxLines).join(' ')}`, width);
+    return kept;
+  }
+  return lines;
+}
+
+const hintLines = (ctx: CanvasRenderingContext2D, l: LineView) => {
+  if (!l.hint) return [];
+  ctx.font = HINT_FONT;
+  return wrap(ctx, l.hint, COL_W);
+};
+const rowHeight = (ctx: CanvasRenderingContext2D, l: LineView) => LABEL_H + hintLines(ctx, l).length * HINT_LINE_H + ROW_PAD;
+const sectionHeight = (ctx: CanvasRenderingContext2D, s: SectionView) =>
+  HEAD_H + (s.lines.length ? s.lines.reduce((h, l) => h + rowHeight(ctx, l), 0) : LABEL_H + ROW_PAD);
 
 /** Draws a section: title with subtotal, then every line that earned points. */
 function drawSection(ctx: CanvasRenderingContext2D, s: SectionView, x: number, y: number) {
@@ -72,16 +105,22 @@ function drawSection(ctx: CanvasRenderingContext2D, s: SectionView, x: number, y
     return;
   }
   for (const [i, l] of s.lines.entries()) {
+    const h = rowHeight(ctx, l);
+    const hints = hintLines(ctx, l);
     ctx.textAlign = 'left';
-    ctx.fillStyle = C.text2;
-    ctx.font = `400 15px ${FONT}`;
-    ctx.fillText(fitText(ctx, SHORT[l.label] ?? l.label, COL_W - 80), x, ry + 20);
+    ctx.fillStyle = C.text;
+    ctx.font = `500 15px ${FONT}`;
+    ctx.fillText(fitText(ctx, SHORT[l.label] ?? l.label, COL_W - 90), x, ry + 20);
     drawPoints(ctx, l.points, l.max, right, ry + 20, 15);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = C.text3;
+    ctx.font = HINT_FONT;
+    hints.forEach((line, j) => ctx.fillText(line, x, ry + LABEL_H + 12 + j * HINT_LINE_H));
     if (i < s.lines.length - 1) {
       ctx.fillStyle = C.border;
-      ctx.fillRect(x, ry + ROW_H - 1, COL_W, 1);
+      ctx.fillRect(x, ry + h - 1, COL_W, 1);
     }
-    ry += ROW_H;
+    ry += h;
   }
 }
 
@@ -112,10 +151,11 @@ export async function renderScoreCard(result: CrsResult, benchmark: Draw | undef
     max: s.max,
     lines: s.lines.filter((l) => l.points > 0),
   }));
+  const measure = document.createElement('canvas').getContext('2d')!;
   // Two balanced columns: core (+ spouse) on the left, the rest on the right.
   const colA = sections.filter((s) => s.title.startsWith('Core') || s.title.startsWith('Spouse'));
   const colB = sections.filter((s) => !colA.includes(s));
-  const colHeight = (col: SectionView[]) => col.reduce((h, s) => h + sectionHeight(s) + SECTION_GAP, -SECTION_GAP);
+  const colHeight = (col: SectionView[]) => col.reduce((h, s) => h + sectionHeight(measure, s) + SECTION_GAP, -SECTION_GAP);
 
   const top = 170;
   const contentBottom = Math.max(top + colHeight(colA), top + colHeight(colB), 560);
@@ -203,12 +243,12 @@ export async function renderScoreCard(result: CrsResult, benchmark: Draw | undef
   let y = top;
   for (const s of colA) {
     drawSection(ctx, s, 460, y);
-    y += sectionHeight(s) + SECTION_GAP;
+    y += sectionHeight(ctx, s) + SECTION_GAP;
   }
   y = top;
   for (const s of colB) {
-    drawSection(ctx, s, 810, y);
-    y += sectionHeight(s) + SECTION_GAP;
+    drawSection(ctx, s, COL_B_X, y);
+    y += sectionHeight(ctx, s) + SECTION_GAP;
   }
 
   // Footer

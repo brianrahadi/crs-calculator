@@ -138,14 +138,19 @@ export function Results({
         <div className="breakdown-full">
           {result.sections.map((s) => (
             <table key={s.id}>
-              <caption>
-                <span>{s.title}</span>
-                <span>{s.points} / {s.max}</span>
-              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">{s.title}</th>
+                  <th scope="col" colSpan={2}>{s.points} / {s.max}</th>
+                </tr>
+              </thead>
               <tbody>
                 {s.lines.map((l) => (
                   <tr key={l.label} className={l.points === 0 ? 'zero' : ''}>
-                    <th scope="row">{l.label}</th>
+                    <th scope="row">
+                      {l.label}
+                      {l.hint && <small className="line-hint">{l.hint}</small>}
+                    </th>
                     <td>{l.points}</td>
                     <td className="muted">/ {l.max}</td>
                   </tr>
