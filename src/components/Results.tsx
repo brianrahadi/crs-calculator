@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { suggestions } from '../crs/suggestions';
 import type { CrsResult, Profile } from '../crs/types';
-import { minLevelIn } from '../crs/calculate';
-import type { CategoryId, CategorySummary } from '../draws/aggregator';
+import type { CategorySummary, Draw } from '../draws/aggregator';
 import { CATEGORY_HINTS, CATEGORY_LABELS } from '../draws/aggregator';
+import type { Status } from '../draws/eligibility';
+import { rankSummaries } from '../draws/eligibility';
 import type { DrawsState } from '../draws/useDraws';
+import type { Scenario } from '../scenarios';
+import { CompareScenarios } from './CompareScenarios';
 import { Distribution } from './Distribution';
 import { daysAgo, formatDate } from './format';
 import { ScoreRing } from './ScorePanel';
@@ -13,23 +16,31 @@ export function Results({
   profile,
   result,
   draws,
+  benchmark,
+  scenarios,
+  activeId,
+  onSelectScenario,
   onEdit,
   onViewDraws,
+  onDownloadCard,
 }: {
   profile: Profile;
   result: CrsResult;
   draws: DrawsState;
+  benchmark: Draw | undefined;
+  scenarios: Scenario[];
+  activeId: string;
+  onSelectScenario: (id: string) => void;
   onEdit: () => void;
   onViewDraws: () => void;
+  onDownloadCard: () => Promise<void>;
 }) {
   const tips = useMemo(() => suggestions(profile), [profile]);
+  const [rendering, setRendering] = useState(false);
   const latestWithPool = draws.data?.draws.find((d) => d.poolTotal > 0);
 
   // Only recently active round types are useful; list the ones you can enter first.
-  const active = draws.summaries
-    .filter((s) => s.count12 > 0 && s.category !== 'pnp')
-    .map((s) => ({ s, status: eligibility(s.category, profile) }))
-    .sort((a, b) => RANK[a.status] - RANK[b.status] || PRIORITY.indexOf(a.s.category) - PRIORITY.indexOf(b.s.category));
+  const active = rankSummaries(draws.summaries, profile);
   const pnp = draws.summaries.find((s) => s.category === 'pnp');
 
   return (
@@ -45,7 +56,18 @@ export function Results({
           </p>
           <div className="row">
             <button type="button" className="btn ghost" onClick={onEdit}>Edit answers</button>
-            <button type="button" className="btn ghost" onClick={() => window.print()}>Print / save PDF</button>
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={rendering}
+              onClick={() => {
+                setRendering(true);
+                onDownloadCard().finally(() => setRendering(false));
+              }}
+            >
+              {rendering ? 'Creating image…' : 'Download image'}
+            </button>
+            <button type="button" className="btn ghost" onClick={() => window.print()}>Print / PDF</button>
           </div>
         </div>
       </section>
@@ -75,6 +97,13 @@ export function Results({
           <button type="button" className="link" onClick={onViewDraws}>See full draw history →</button>
         </p>
       </section>
+
+      {scenarios.length > 1 && (
+        <section className="card">
+          <h3>Compare scenarios</h3>
+          <CompareScenarios scenarios={scenarios} activeId={activeId} benchmark={benchmark} onSelect={onSelectScenario} />
+        </section>
+      )}
 
       {latestWithPool && (
         <section className="card">
@@ -127,19 +156,6 @@ export function Results({
       </section>
     </div>
   );
-}
-
-type Status = 'eligible' | 'occupation' | 'ineligible';
-const RANK: Record<Status, number> = { eligible: 0, occupation: 1, ineligible: 2 };
-const PRIORITY: CategoryId[] = ['general', 'cec', 'french', 'fsw', 'fst', 'healthcare', 'stem', 'trades', 'education', 'transport', 'agriculture', 'senior', 'physicians', 'military'];
-
-/** What we can tell from the profile; occupation-based categories can't be checked here. */
-function eligibility(category: CategoryId, p: Profile): Status {
-  if (category === 'general' || category === 'fsw') return 'eligible';
-  if (category === 'cec') return p.canadianWork >= 1 ? 'eligible' : 'ineligible';
-  if (category === 'french') return minLevelIn(p, 'fr') >= 7 ? 'eligible' : 'ineligible';
-  if (category === 'senior' || category === 'physicians') return p.canadianWork >= 1 ? 'occupation' : 'ineligible';
-  return 'occupation';
 }
 
 function CompareRow({ s, status, score }: { s: CategorySummary; status: Status; score: number }) {

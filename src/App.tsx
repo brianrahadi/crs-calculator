@@ -1,82 +1,150 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DrawsView } from './components/DrawsView';
+import { NewDrawsBanner } from './components/NewDrawsBanner';
 import { Results } from './components/Results';
+import { ScenarioBar } from './components/ScenarioBar';
+import { downloadScoreCard } from './components/scoreCard';
 import { MobileScore, ScorePanel } from './components/ScorePanel';
 import { StepBody, stepsFor } from './components/Wizard';
 import { calculate } from './crs/calculate';
 import type { Profile } from './crs/types';
 import { defaultProfile } from './crs/types';
+import { benchmarkDraw } from './draws/eligibility';
 import { useDraws } from './draws/useDraws';
+import type { ScenarioStore } from './scenarios';
+import { decodeProfile, loadStore, newId, sameProfile, saveStore, SHARE_PARAM, shareUrl } from './scenarios';
 
-const STORAGE_KEY = 'crs:profile:v1';
 type Tab = 'calculator' | 'draws';
 
-function loadProfile(): Profile {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaultProfile(), ...JSON.parse(raw) };
-  } catch {
-    // Ignore corrupt or blocked storage.
-  }
-  return defaultProfile();
+/** Load saved scenarios, adding one from a shared link (?p=…) if present. */
+function initialState(): { store: ScenarioStore; shared: boolean } {
+  const store = loadStore();
+  const code = new URLSearchParams(location.search).get(SHARE_PARAM);
+  if (!code) return { store, shared: false };
+  const decoded = decodeProfile(code);
+  if (!decoded) return { store, shared: false };
+
+  const existing = store.scenarios.find((s) => sameProfile(s.profile, decoded.profile));
+  if (existing) return { store: { ...store, activeId: existing.id }, shared: true };
+
+  const blank = store.scenarios.length === 1 && store.scenarios[0].profile.age == null;
+  const scenario = { id: newId(), name: decoded.name ? `Shared: ${decoded.name}`.slice(0, 40) : 'Shared profile', profile: decoded.profile };
+  // Replace an untouched blank profile rather than keeping it around.
+  const scenarios = blank ? [scenario] : [...store.scenarios, scenario];
+  return { store: { scenarios, activeId: scenario.id }, shared: true };
 }
 
 export default function App() {
+  const [init] = useState(initialState);
+  const [store, setStore] = useState<ScenarioStore>(init.store);
   const [tab, setTab] = useState<Tab>(() => (location.hash === '#draws' ? 'draws' : 'calculator'));
-  const [profile, setProfile] = useState<Profile>(loadProfile);
   const [stepIndex, setStepIndex] = useState(0);
-  const [showResults, setShowResults] = useState(false);
+  const [showResults, setShowResults] = useState(init.shared);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(init.shared ? 'Opened a shared profile as a new scenario' : null);
   const top = useRef<HTMLDivElement>(null);
   const draws = useDraws();
 
+  const active = store.scenarios.find((s) => s.id === store.activeId)!;
+  const profile = active.profile;
   const result = useMemo(() => calculate(profile), [profile]);
   const steps = stepsFor(profile);
   const step = steps[Math.min(stepIndex, steps.length - 1)];
   const started = profile.age != null;
+  const benchmark = useMemo(() => benchmarkDraw(draws.summaries, profile), [draws.summaries, profile]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-    } catch {
-      // Storage unavailable — answers just won't persist.
-    }
-  }, [profile]);
+  useEffect(() => saveStore(store), [store]);
 
+  // Keeps the URL in sync with the tab, and drops a consumed share code (it now lives in a scenario).
   useEffect(() => {
-    history.replaceState(null, '', tab === 'draws' ? '#draws' : location.pathname + location.search);
+    history.replaceState(null, '', location.pathname + (tab === 'draws' ? '#draws' : ''));
   }, [tab]);
 
-  // The most relevant cutoff to benchmark against in the live panel.
-  const benchmark = useMemo(() => {
-    const recent = draws.summaries.filter((s) => s.count12 > 0);
-    const wanted = profile.canadianWork >= 1 ? ['cec', 'general'] : ['general', 'cec'];
-    for (const cat of wanted) {
-      const s = recent.find((x) => x.category === cat);
-      if (s) return s.latest;
-    }
-    return recent.find((s) => s.category !== 'pnp')?.latest;
-  }, [draws.summaries, profile.canadianWork]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [toast]);
 
+  const setProfile = (update: (p: Profile) => Profile) =>
+    setStore((st) => ({
+      ...st,
+      scenarios: st.scenarios.map((s) => (s.id === st.activeId ? { ...s, profile: update(s.profile) } : s)),
+    }));
   const set = (patch: Partial<Profile>) => setProfile((p) => ({ ...p, ...patch }));
+
+  const addScenario = (name: string, p: Profile) => {
+    const id = newId();
+    setStore((st) => ({ scenarios: [...st.scenarios, { id, name, profile: p }], activeId: id }));
+  };
+  const uniqueName = (base: string) => {
+    const names = new Set(store.scenarios.map((s) => s.name));
+    if (!names.has(base)) return base;
+    let i = 2;
+    while (names.has(`${base} ${i}`)) i++;
+    return `${base} ${i}`;
+  };
+  const selectScenario = (id: string) => setStore((st) => ({ ...st, activeId: id }));
+  const renameScenario = (name: string) =>
+    setStore((st) => ({ ...st, scenarios: st.scenarios.map((s) => (s.id === st.activeId ? { ...s, name } : s)) }));
+  const deleteScenario = () => {
+    if (!confirm(`Delete “${active.name}”?`)) return;
+    setStore((st) => {
+      const scenarios = st.scenarios.filter((s) => s.id !== st.activeId);
+      return { scenarios, activeId: scenarios[0].id };
+    });
+  };
+
+  const shareLink = async () => {
+    const url = shareUrl(profile, active.name);
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+      try {
+        await navigator.share({ title: `CRS score: ${result.total}`, url });
+        return;
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast('Link copied. Anyone who opens it sees these answers.');
+    } catch {
+      prompt('Copy this link:', url);
+    }
+  };
+
   const scrollTop = () => top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const go = (i: number) => {
     setShowResults(false);
     setStepIndex(i);
     scrollTop();
   };
-  const next = () => {
-    if (stepIndex < steps.length - 1) go(stepIndex + 1);
-    else {
-      setShowResults(true);
-      scrollTop();
-    }
+  const openResults = () => {
+    setShowResults(true);
+    scrollTop();
   };
+  const next = () => (stepIndex < steps.length - 1 ? go(stepIndex + 1) : openResults());
   const reset = () => {
-    if (!confirm('Clear all your answers and start over?')) return;
-    setProfile(defaultProfile());
+    if (!confirm(`Clear all answers in “${active.name}” and start over?`)) return;
+    setProfile(() => defaultProfile());
     go(0);
   };
+
+  const scenarioBar = (
+    <ScenarioBar
+      scenarios={store.scenarios}
+      activeId={store.activeId}
+      onSelect={selectScenario}
+      onDuplicate={() => addScenario(uniqueName(`${active.name} (copy)`), structuredClone(profile))}
+      onNew={() => {
+        addScenario(uniqueName('Scenario'), defaultProfile());
+        go(0);
+      }}
+      onRename={renameScenario}
+      onDelete={deleteScenario}
+      onShare={shareLink}
+    />
+  );
 
   return (
     <div className="app" ref={top}>
@@ -98,6 +166,16 @@ export default function App() {
         </nav>
       </header>
 
+      <div className="page banner-slot">
+        <NewDrawsBanner
+          draws={draws.data?.draws}
+          live={draws.data?.source === 'live' || draws.data?.source === 'cache'}
+          profile={profile}
+          score={started ? result.total : null}
+          onView={() => setTab('draws')}
+        />
+      </div>
+
       {tab === 'draws' ? (
         <main className="page">
           <DrawsView draws={draws} score={started ? result.total : null} />
@@ -105,13 +183,19 @@ export default function App() {
       ) : (
         <main className="page layout">
           <div className="flow">
+            {scenarioBar}
             {showResults ? (
               <Results
                 profile={profile}
                 result={result}
                 draws={draws}
+                benchmark={benchmark}
+                scenarios={store.scenarios}
+                activeId={store.activeId}
+                onSelectScenario={selectScenario}
                 onEdit={() => go(0)}
                 onViewDraws={() => setTab('draws')}
+                onDownloadCard={() => downloadScoreCard(result, benchmark, active.name)}
               />
             ) : (
               <>
@@ -126,7 +210,7 @@ export default function App() {
                   ))}
                 </ol>
 
-                <section className="card step" key={step.id}>
+                <section className="card step" key={`${store.activeId}-${step.id}`}>
                   <div className="step-head">
                     <div className="eyebrow">Step {stepIndex + 1} of {steps.length}</div>
                     <h2>{step.title}</h2>
@@ -156,7 +240,7 @@ export default function App() {
           <div className="side">
             <ScorePanel result={result} latest={benchmark} />
             {!showResults && (
-              <button type="button" className="btn primary block" onClick={() => { setShowResults(true); scrollTop(); }}>
+              <button type="button" className="btn primary block" onClick={openResults}>
                 View full results
               </button>
             )}
@@ -167,7 +251,7 @@ export default function App() {
             <div className="sheet-backdrop" onClick={() => setSheetOpen(false)}>
               <div className="sheet" role="dialog" aria-modal="true" aria-label="Score breakdown" onClick={(e) => e.stopPropagation()}>
                 <ScorePanel result={result} latest={benchmark} />
-                <button type="button" className="btn primary block" onClick={() => { setSheetOpen(false); setShowResults(true); scrollTop(); }}>
+                <button type="button" className="btn primary block" onClick={() => { setSheetOpen(false); openResults(); }}>
                   View full results
                 </button>
               </div>
@@ -175,6 +259,8 @@ export default function App() {
           )}
         </main>
       )}
+
+      {toast && <div className="toast" role="status">{toast}</div>}
 
       <footer className="footer">
         <p>
