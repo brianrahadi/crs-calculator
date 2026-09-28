@@ -160,3 +160,11 @@ export async function downloadScoreCard(...args: Parameters<typeof renderScoreCa
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export const canCopyImage = () => typeof ClipboardItem !== 'undefined' && !!navigator.clipboard?.write;
+
+/** Copy the card to the clipboard as a PNG, ready to paste into chats or docs. */
+export async function copyScoreCard(...args: Parameters<typeof renderScoreCard>) {
+  // Safari needs the ClipboardItem created synchronously in the click handler, with the image as a promise.
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': renderScoreCard(...args) })]);
+}

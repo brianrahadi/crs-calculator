@@ -3,7 +3,7 @@ import { DrawsView } from './components/DrawsView';
 import { NewDrawsBanner } from './components/NewDrawsBanner';
 import { Results } from './components/Results';
 import { ScenarioBar } from './components/ScenarioBar';
-import { downloadScoreCard } from './components/scoreCard';
+import { canCopyImage, copyScoreCard, downloadScoreCard } from './components/scoreCard';
 import { MobileScore, ScorePanel } from './components/ScorePanel';
 import { StepBody, stepsFor } from './components/Wizard';
 import { calculate } from './crs/calculate';
@@ -196,6 +196,15 @@ export default function App() {
                 onEdit={() => go(0)}
                 onViewDraws={() => setTab('draws')}
                 onDownloadCard={() => downloadScoreCard(result, benchmark, active.name)}
+                onCopyCard={
+                  canCopyImage()
+                    ? () =>
+                        copyScoreCard(result, benchmark, active.name).then(
+                          () => setToast('Image copied — paste it anywhere.'),
+                          () => setToast("Couldn't copy the image. Try Download image instead."),
+                        )
+                    : undefined
+                }
               />
             ) : (
               <>

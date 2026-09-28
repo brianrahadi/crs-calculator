@@ -23,6 +23,7 @@ export function Results({
   onEdit,
   onViewDraws,
   onDownloadCard,
+  onCopyCard,
 }: {
   profile: Profile;
   result: CrsResult;
@@ -34,9 +35,15 @@ export function Results({
   onEdit: () => void;
   onViewDraws: () => void;
   onDownloadCard: () => Promise<void>;
+  /** Absent when the browser can't write images to the clipboard. */
+  onCopyCard?: () => Promise<void>;
 }) {
   const tips = useMemo(() => suggestions(profile), [profile]);
-  const [rendering, setRendering] = useState(false);
+  const [busy, setBusy] = useState<'download' | 'copy' | null>(null);
+  const run = (kind: 'download' | 'copy', fn: () => Promise<void>) => {
+    setBusy(kind);
+    fn().finally(() => setBusy(null));
+  };
   const latestWithPool = draws.data?.draws.find((d) => d.poolTotal > 0);
 
   // Only recently active round types are useful; list the ones you can enter first.
@@ -55,19 +62,16 @@ export function Results({
             {active.length > 0 && <> Here's how it stacks up against the latest rounds of invitations.</>}
           </p>
           <div className="row">
-            <button type="button" className="btn ghost" onClick={onEdit}>Edit answers</button>
-            <button
-              type="button"
-              className="btn ghost"
-              disabled={rendering}
-              onClick={() => {
-                setRendering(true);
-                onDownloadCard().finally(() => setRendering(false));
-              }}
-            >
-              {rendering ? 'Creating image…' : 'Download image'}
+            <button type="button" className="btn ghost" onClick={onEdit}>Edit</button>
+            <button type="button" className="btn ghost" title="Download your score as an image" disabled={busy != null} onClick={() => run('download', onDownloadCard)}>
+              {busy === 'download' ? 'Creating…' : 'Download'}
             </button>
-            <button type="button" className="btn ghost" onClick={() => window.print()}>Print / PDF</button>
+            {onCopyCard && (
+              <button type="button" className="btn ghost" title="Copy your score as an image" disabled={busy != null} onClick={() => run('copy', onCopyCard)}>
+                {busy === 'copy' ? 'Copying…' : 'Copy image'}
+              </button>
+            )}
+            <button type="button" className="btn ghost" title="Print or save as PDF" onClick={() => window.print()}>PDF</button>
           </div>
         </div>
       </section>
