@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { CategoryId } from '../draws/aggregator';
 import { CATEGORY_HINTS, CATEGORY_LABELS, OFFICIAL_PAGE } from '../draws/aggregator';
 import type { DrawsState } from '../draws/useDraws';
+import { BcPnpHighWage } from './BcPnpHighWage';
 import { Distribution } from './Distribution';
 import { daysAgo, fmt, formatDate } from './format';
 import { TrendChart } from './TrendChart';
@@ -174,6 +175,8 @@ export function DrawsView({ draws, score }: { draws: DrawsState; score: number |
           <Distribution draw={latestPool} score={score} />
         </section>
       )}
+
+      <BcPnpHighWage />
     </div>
   );
 }

@@ -31,6 +31,11 @@ fallback snapshot; refresh it with:
 npm run sync-draws
 ```
 
+The draws tab also shows **BC PNP high-wage rounds** (Skills Immigration – high economic impact, wage-based). WelcomeBC
+has no machine-readable feed, so these live in `src/bcpnp/highWage.ts` as a hand-maintained snapshot: add each new round
+to the top of `HIGH_WAGE_DRAWS` and bump `CHECKED_AT`. Source:
+[WelcomeBC invitations to apply](https://www.welcomebc.ca/immigrate-to-b-c/about-the-bc-provincial-nominee-program/invitations-to-apply).
+
 ## Development
 
 ```sh

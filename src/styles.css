@@ -291,7 +291,7 @@ input, select { font: inherit; color: inherit; }
 .draws { display: grid; gap: 16px; }
 .latest { display: grid; grid-template-columns: 1fr auto; gap: 16px 24px; align-items: center; }
 .latest h2 { margin: 2px 0 4px; }
-.stats { display: flex; gap: 24px; margin: 0; }
+.stats { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 0; }
 .stats dt { font-size: 12px; color: var(--text-3); }
 .stats dd { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
 .source { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; padding-top: 14px; border-top: 1px solid var(--border); }
@@ -340,6 +340,8 @@ input, select { font: inherit; color: inherit; }
 .draw-table .num { text-align: right; white-space: nowrap; }
 .draw-table td:nth-child(2) { white-space: nowrap; }
 .draw-table a { text-decoration: none; font-weight: 500; }
+.wage-table td:first-child { white-space: nowrap; }
+.draw-table.wage-table td:nth-child(3) { min-width: 0; }
 .btn.ghost.block { margin-top: 12px; }
 
 /* ---------- Responsive ---------- */
