@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BcPnp } from './components/BcPnp';
 import { DrawsView } from './components/DrawsView';
 import { NewDrawsBanner } from './components/NewDrawsBanner';
 import { Results } from './components/Results';
@@ -14,7 +15,9 @@ import { useDraws } from './draws/useDraws';
 import type { ScenarioStore } from './scenarios';
 import { decodeProfile, loadStore, newId, sameProfile, saveStore, SHARE_PARAM, shareUrl } from './scenarios';
 
-type Tab = 'calculator' | 'draws';
+type Tab = 'calculator' | 'bcpnp' | 'draws';
+const TAB_HASH: Record<Tab, string> = { calculator: '', bcpnp: '#bcpnp', draws: '#draws' };
+const tabFromHash = (): Tab => (location.hash === '#draws' ? 'draws' : location.hash === '#bcpnp' ? 'bcpnp' : 'calculator');
 
 /** Load saved scenarios, adding one from a shared link (?p=…) if present. */
 function initialState(): { store: ScenarioStore; shared: boolean } {
@@ -37,7 +40,7 @@ function initialState(): { store: ScenarioStore; shared: boolean } {
 export default function App() {
   const [init] = useState(initialState);
   const [store, setStore] = useState<ScenarioStore>(init.store);
-  const [tab, setTab] = useState<Tab>(() => (location.hash === '#draws' ? 'draws' : 'calculator'));
+  const [tab, setTab] = useState<Tab>(tabFromHash);
   const [stepIndex, setStepIndex] = useState(0);
   const [showResults, setShowResults] = useState(init.shared);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -57,7 +60,7 @@ export default function App() {
 
   // Keeps the URL in sync with the tab, and drops a consumed share code (it now lives in a scenario).
   useEffect(() => {
-    history.replaceState(null, '', location.pathname + (tab === 'draws' ? '#draws' : ''));
+    history.replaceState(null, '', location.pathname + TAB_HASH[tab]);
   }, [tab]);
 
   useEffect(() => {
@@ -155,30 +158,42 @@ export default function App() {
           </span>
           <div>
             <strong>CRS Calculator</strong>
-            <small>Express Entry · Canada</small>
+            <small>Express Entry · BC PNP</small>
           </div>
         </div>
         <nav className="tabs" aria-label="Sections">
-          <button type="button" className={tab === 'calculator' ? 'on' : ''} onClick={() => setTab('calculator')}>Calculator</button>
-          <button type="button" className={tab === 'draws' ? 'on' : ''} onClick={() => setTab('draws')}>
-            Latest draws
+          <button type="button" className={tab === 'calculator' ? 'on' : ''} aria-current={tab === 'calculator' ? 'page' : undefined} onClick={() => setTab('calculator')}>
+            CRS
+          </button>
+          <button type="button" className={tab === 'bcpnp' ? 'on' : ''} aria-current={tab === 'bcpnp' ? 'page' : undefined} onClick={() => setTab('bcpnp')}>
+            BC PNP
+          </button>
+          <button type="button" className={tab === 'draws' ? 'on' : ''} aria-current={tab === 'draws' ? 'page' : undefined} onClick={() => setTab('draws')}>
+            <span className="tab-long">Latest draws</span>
+            <span className="tab-short">Draws</span>
           </button>
         </nav>
       </header>
 
-      <div className="page banner-slot">
-        <NewDrawsBanner
-          draws={draws.data?.draws}
-          live={draws.data?.source === 'live' || draws.data?.source === 'cache'}
-          profile={profile}
-          score={started ? result.total : null}
-          onView={() => setTab('draws')}
-        />
-      </div>
+      {tab !== 'bcpnp' && (
+        <div className="page banner-slot">
+          <NewDrawsBanner
+            draws={draws.data?.draws}
+            live={draws.data?.source === 'live' || draws.data?.source === 'cache'}
+            profile={profile}
+            score={started ? result.total : null}
+            onView={() => setTab('draws')}
+          />
+        </div>
+      )}
 
       {tab === 'draws' ? (
         <main className="page">
-          <DrawsView draws={draws} score={started ? result.total : null} />
+          <DrawsView draws={draws} score={started ? result.total : null} onOpenBcPnp={() => setTab('bcpnp')} />
+        </main>
+      ) : tab === 'bcpnp' ? (
+        <main className="page layout">
+          <BcPnp crsProfile={profile} onToast={setToast} />
         </main>
       ) : (
         <main className="page layout">
@@ -272,11 +287,19 @@ export default function App() {
       {toast && <div className="toast" role="status">{toast}</div>}
 
       <footer className="footer">
-        <p>
-          Unofficial tool. Points follow IRCC's published CRS criteria; draw data comes from IRCC's official rounds-of-invitations feed.
-          Always confirm with the{' '}
-          <a href="https://www.cic.gc.ca/english/immigrate/skilled/crs-tool.asp" target="_blank" rel="noreferrer">official CRS tool</a>.
-        </p>
+        {tab === 'bcpnp' ? (
+          <p>
+            Unofficial tool. Points follow the BC PNP Skills Immigration Program Guide; round data is a snapshot of WelcomeBC's
+            invitations page. Always confirm with the{' '}
+            <a href="https://www.welcomebc.ca/immigrate-to-b-c/skills-immigration" target="_blank" rel="noreferrer">BC PNP</a>.
+          </p>
+        ) : (
+          <p>
+            Unofficial tool. Points follow IRCC's published CRS criteria; draw data comes from IRCC's official rounds-of-invitations feed.
+            Always confirm with the{' '}
+            <a href="https://www.cic.gc.ca/english/immigrate/skilled/crs-tool.asp" target="_blank" rel="noreferrer">official CRS tool</a>.
+          </p>
+        )}
       </footer>
     </div>
   );

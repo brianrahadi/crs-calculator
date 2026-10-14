@@ -3,11 +3,11 @@ import type { Draw } from '../draws/aggregator';
 import { CATEGORY_LABELS } from '../draws/aggregator';
 import { formatDate } from './format';
 
-export function ScoreRing({ total, size = 148 }: { total: number; size?: number }) {
+export function ScoreRing({ total, size = 148, max = 1200 }: { total: number; size?: number; max?: number }) {
   const stroke = 10;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const pct = Math.min(total, 1200) / 1200;
+  const pct = Math.min(total, max) / max;
   return (
     <div className="ring" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
@@ -27,7 +27,7 @@ export function ScoreRing({ total, size = 148 }: { total: number; size?: number 
       </svg>
       <div className="ring-label">
         <strong aria-live="polite">{total}</strong>
-        <span>of 1,200</span>
+        <span>of {max.toLocaleString('en-CA')}</span>
       </div>
     </div>
   );
@@ -72,12 +72,22 @@ export function ScorePanel({ result, latest }: { result: CrsResult; latest: Draw
 }
 
 /** Compact bar pinned to the bottom of small screens. */
-export function MobileScore({ total, onOpen }: { total: number; onOpen: () => void }) {
+export function MobileScore({
+  total,
+  onOpen,
+  label = 'Your CRS score',
+  cta = 'Breakdown ↑',
+}: {
+  total: number;
+  onOpen: () => void;
+  label?: string;
+  cta?: string;
+}) {
   return (
     <button type="button" className="mobile-score" onClick={onOpen}>
-      <span>Your CRS score</span>
+      <span>{label}</span>
       <strong>{total}</strong>
-      <span className="mobile-score-cta">Breakdown ↑</span>
+      <span className="mobile-score-cta">{cta}</span>
     </button>
   );
 }

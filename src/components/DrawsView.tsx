@@ -15,7 +15,15 @@ const RANGES = [
   { id: 'all', label: 'All', months: 0 },
 ] as const;
 
-export function DrawsView({ draws, score }: { draws: DrawsState; score: number | null }) {
+export function DrawsView({
+  draws,
+  score,
+  onOpenBcPnp,
+}: {
+  draws: DrawsState;
+  score: number | null;
+  onOpenBcPnp?: () => void;
+}) {
   const [filter, setFilter] = useState<Filter>('all');
   const [range, setRange] = useState<(typeof RANGES)[number]['id']>('1y');
   const [shown, setShown] = useState(15);
@@ -176,7 +184,7 @@ export function DrawsView({ draws, score }: { draws: DrawsState; score: number |
         </section>
       )}
 
-      <BcPnpHighWage />
+      <BcPnpHighWage onOpenCalculator={onOpenBcPnp} />
     </div>
   );
 }

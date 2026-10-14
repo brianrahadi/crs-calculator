@@ -31,17 +31,35 @@ fallback snapshot; refresh it with:
 npm run sync-draws
 ```
 
-The draws tab also shows **BC PNP high-wage rounds** (Skills Immigration – high economic impact, wage-based). WelcomeBC
-has no machine-readable feed, so these live in `src/bcpnp/highWage.ts` as a hand-maintained snapshot: add each new round
-to the top of `HIGH_WAGE_DRAWS` and bump `CHECKED_AT`. Source:
-[WelcomeBC invitations to apply](https://www.welcomebc.ca/immigrate-to-b-c/about-the-bc-provincial-nominee-program/invitations-to-apply).
+## BC PNP calculator
+
+The **BC PNP** tab scores a B.C. Provincial Nominee Program **Skills Immigration** registration out of 200 points, following
+Part 8 of the [Skills Immigration Program Guide](https://www.welcomebc.ca/immigrate-to-b-c/bc-pnp-si-program-guide-pdf)
+(effective June 10, 2026):
+
+| Factor | Max | How it's scored |
+| --- | --- | --- |
+| Directly related work experience | 40 | 0–20 by years, +10 Canadian experience, +10 already working for the employer |
+| Highest education | 40 | 0–27 by level, +8 B.C. / +6 Canadian credential, +5 B.C. professional designation |
+| Language | 40 | Lowest CLB/NCLC ability on the stronger test (CLB 4 = 5 … CLB 9+ = 30), +10 English and French |
+| Hourly wage | 55 | $1 = 1 point from $16/hr, capped at $70/hr |
+| Area of employment | 25 | Area 1 = 0, Area 2 = 5, Area 3 = 15, +10 regional experience or alumni |
+
+It compares the score with every 2026 round type (Innovate: high economic impact, Care, Build, rural/remote health), checks
+the job offer against the latest wage-based round, places it in the registration pool, and ranks what-ifs. Language test
+scores can be copied over from the CRS calculator; answers persist locally.
+
+WelcomeBC has no machine-readable feed, so rounds and the pool distribution live in `src/bcpnp/rounds.ts` as a
+hand-maintained snapshot of [WelcomeBC invitations to apply](https://www.welcomebc.ca/immigrate-to-b-c/about-the-bc-provincial-nominee-program/invitations-to-apply).
+After each round, add it to the top of `SCORE_ROUNDS` (and `HIGH_WAGE_DRAWS` for wage-based rounds), refresh `POOL`, and
+bump `CHECKED_AT`. The draws tab also lists the high-wage rounds.
 
 ## Development
 
 ```sh
 npm install
 npm run dev      # http://localhost:5173
-npm test         # scoring + aggregator tests
+npm test         # CRS + BC PNP scoring, aggregator tests
 npm run build    # static site in dist/ — deploy anywhere (GitHub Pages, Netlify, Vercel…)
 ```
 
