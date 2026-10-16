@@ -1,14 +1,32 @@
+import { HIGH_WAGE_WORK_POINTS, JOB_OFFER_POINTS, TIER_LABEL } from './highWage';
 import { clbLevels, languageOf, testInfo } from './language';
-import type { CrsResult, Education, LanguageResult, Line, Profile, Section, Skill } from './types';
+import type { CrsResult, Education, LanguageResult, Line, Profile, Section, Skill, WageTier } from './types';
 import { SKILLS } from './types';
 
 /*
  * Comprehensive Ranking System criteria, per IRCC's published grid.
  * Tuples are [with accompanying spouse, without spouse].
- * Arranged-employment points were removed from the CRS on 2025-03-25.
+ * Arranged-employment points were removed from the CRS on 2025-03-25; from 2026-11-03 the
+ * Labour Market Integration factor scores Canadian work (length + high-wage occupation) or a
+ * high-wage job offer — whichever is higher, never both.
  */
 
 type Pair = [number, number];
+
+/**
+ * Which CRS grid to score with. 'nov2026' adds the Labour Market Integration factor (effective
+ * 2026-11-03); 'pre2026' is the grid in force until then (no job offer points since 2025-03-25).
+ */
+export type Rules = 'pre2026' | 'nov2026';
+
+export const RULES_LABEL: Record<Rules, string> = {
+  pre2026: 'Current rules (until Nov 2, 2026)',
+  nov2026: 'New rules (from Nov 3, 2026)',
+};
+
+/** Highest possible total: section maximums add up to 1,270 under the new rules, 1,200 before. */
+export const CRS_MAX = 1270;
+export const CRS_MAX_BY_RULES: Record<Rules, number> = { pre2026: 1200, nov2026: CRS_MAX };
 
 const AGE: Record<number, Pair> = {
   18: [90, 99], 19: [95, 105],
@@ -135,10 +153,10 @@ export function hasSpouseFactor(p: Profile) {
   return p.married && !p.spouseIsCanadian && p.spouseAccompanying;
 }
 
-export function calculate(p: Profile): CrsResult {
+export function calculate(p: Profile, rules: Rules = 'nov2026'): CrsResult {
   const withSpouse = hasSpouseFactor(p);
   const w = withSpouse ? 0 : 1;
-  const coreMax = withSpouse ? 460 : 500;
+  const coreMax = rules === 'pre2026' ? (withSpouse ? 460 : 500) : withSpouse ? 390 : 420;
 
   const first = clbLevels(p.firstLanguage);
   const second = p.hasSecondLanguage ? clbLevels(p.secondLanguage) : null;
@@ -150,7 +168,6 @@ export function calculate(p: Profile): CrsResult {
   const firstLang = sumOf(first, (c) => firstLanguagePoints(c, withSpouse));
   const secondMax = withSpouse ? 22 : 24;
   const secondLang = second ? Math.min(sumOf(second, secondLanguagePoints), secondMax) : 0;
-  const cdnWork = CANADIAN_WORK[Math.min(p.canadianWork, 5)][w];
 
   const core: Section = {
     id: 'core',
@@ -167,7 +184,54 @@ export function calculate(p: Profile): CrsResult {
         max: secondMax,
         hint: second ? languageHint(p.secondLanguage, second) + (sumOf(second, secondLanguagePoints) > secondMax ? ` · capped at ${secondMax}` : '') : 'No second-language test',
       },
-      { label: 'Canadian work experience', points: cdnWork, max: withSpouse ? 70 : 80, hint: p.canadianWork ? `${years(p.canadianWork, 5)} of skilled work in Canada` : 'No Canadian work experience' },
+    ],
+  };
+
+  // Labour market integration (from 2026-11-03): work path or job offer path, whichever is higher.
+  const workLength = CANADIAN_WORK[Math.min(p.canadianWork, 5)][w];
+  const hwTier: WageTier = p.canadianWork >= 1 ? p.highWageWork : 'none';
+  const hwPoints = HIGH_WAGE_WORK_POINTS[hwTier];
+  const workPath = workLength + hwPoints;
+  const offerPath = JOB_OFFER_POINTS[p.jobOffer];
+  const useOffer = offerPath > workPath;
+  const lmiMax = withSpouse ? 140 : 150;
+  const workHint = p.canadianWork ? `${years(p.canadianWork, 5)} of skilled work in Canada` : 'No Canadian work experience';
+  if (rules === 'pre2026') {
+    core.lines.push({ label: 'Canadian work experience', points: workLength, max: withSpouse ? 70 : 80, hint: workHint });
+  }
+
+  const lmi: Section = {
+    id: 'lmi',
+    title: 'Labour market integration',
+    max: lmiMax,
+    points: 0,
+    choice: { work: workPath, offer: offerPath, counted: useOffer ? 'offer' : workPath > 0 ? 'work' : null },
+    lines: [
+      {
+        label: 'Canadian work experience',
+        option: 'work',
+        points: useOffer ? 0 : workLength,
+        max: withSpouse ? 70 : 80,
+        hint: workHint,
+      },
+      {
+        label: 'High-wage occupation experience',
+        option: 'work',
+        points: useOffer ? 0 : hwPoints,
+        max: 70,
+        hint: (p.canadianWork === 0
+          ? 'Needs 12+ months of Canadian work'
+          : hwTier === 'none'
+            ? 'No 12+ months in a high-wage occupation'
+            : `12+ months in ${TIER_LABEL[hwTier]} occupations`),
+      },
+      {
+        label: 'High-wage job offer',
+        option: 'offer',
+        points: useOffer ? offerPath : 0,
+        max: 100,
+        hint: p.jobOffer === 'none' ? 'No job offer in a high-wage occupation' : `Offer in a ${TIER_LABEL[p.jobOffer]} occupation`,
+      },
     ],
   };
 
@@ -284,11 +348,12 @@ export function calculate(p: Profile): CrsResult {
 
   const sum = (lines: Line[]) => lines.reduce((a, l) => a + l.points, 0);
   core.points = sum(core.lines);
+  lmi.points = Math.min(lmiMax, sum(lmi.lines));
   spouse.points = sum(spouse.lines);
   transferability.points = Math.min(100, transferRaw);
   additional.points = Math.min(600, sum(additional.lines));
 
-  const sections = [core, spouse, transferability, additional].filter((s) => s.max > 0);
+  const sections = [core, ...(rules === 'nov2026' ? [lmi] : []), spouse, transferability, additional].filter((s) => s.max > 0);
   return {
     withSpouse,
     sections,

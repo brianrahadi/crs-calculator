@@ -65,6 +65,19 @@ npm run build    # static site in dist/ — deploy anywhere (GitHub Pages, Netli
 
 ## Scoring notes
 
-Points follow IRCC's published CRS criteria. Arranged-employment (job offer) points were removed on March 25, 2025
-and are not counted. This is an unofficial tool — confirm with the
+Points follow IRCC's published CRS criteria, including the
+[changes effective November 3, 2026](https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/changes.html).
+Canadian work experience now sits in a **Labour Market Integration** factor (max 140 with a spouse, 150 without),
+scored by whichever path is higher — never both:
+
+| Path | Points |
+| --- | --- |
+| Canadian work (existing length grid) | 0–70 with spouse / 0–80 without |
+| + 12+ months in high-wage occupations | +20 (1.3× median), +40 (1.5×), +70 (2×) |
+| **or** a valid job offer in a high-wage occupation (no LMIA needed) | 50 (1.3×), 70 (1.5×), 100 (2×) |
+
+Skill transferability still uses plain Canadian work length. The 186 occupations on IRCC's
+[high-wage list](https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/check-score/high-wage.html)
+(2023–2025 wage data) live in `src/crs/highWage.ts` and power the NOC lookup on the Work step — update the tables
+there when IRCC refreshes the list. This is an unofficial tool — confirm with the
 [official CRS tool](https://www.cic.gc.ca/english/immigrate/skilled/crs-tool.asp).

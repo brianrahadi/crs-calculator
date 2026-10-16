@@ -24,6 +24,9 @@ export interface LanguageResult {
 
 export type CanadianStudy = 'none' | 'oneOrTwo' | 'threePlus';
 
+/** High-wage occupation tier: Canada-wide median wage for the NOC vs. the average median wage. */
+export type WageTier = 'none' | '1.3x' | '1.5x' | '2x';
+
 export interface Profile {
   married: boolean;
   /** Spouse is a Canadian citizen / PR — scored as single. */
@@ -37,6 +40,10 @@ export interface Profile {
   hasSecondLanguage: boolean;
   secondLanguage: LanguageResult;
   canadianWork: number; // years, 0..5 (5 = 5+)
+  /** Highest tier with 12+ months (combined) of Canadian work in high-wage occupations at or above it. */
+  highWageWork: WageTier;
+  /** Valid Express Entry job offer, by the high-wage tier of its occupation. */
+  jobOffer: WageTier;
   foreignWork: number; // years, 0..3 (3 = 3+)
   tradeCertificate: boolean;
   provincialNomination: boolean;
@@ -52,14 +59,27 @@ export interface Line {
   points: number;
   max: number;
   hint?: string;
+  /** Labour market integration: which of the two mutually exclusive options this line belongs to. */
+  option?: LmiOption;
+}
+
+export type LmiOption = 'work' | 'offer';
+
+/** Labour market integration scores the higher of two options — never both. */
+export interface LmiChoice {
+  work: number;
+  offer: number;
+  /** null when neither option earns points. Ties go to work. */
+  counted: LmiOption | null;
 }
 
 export interface Section {
-  id: 'core' | 'spouse' | 'transferability' | 'additional';
+  id: 'core' | 'lmi' | 'spouse' | 'transferability' | 'additional';
   title: string;
   points: number;
   max: number;
   lines: Line[];
+  choice?: LmiChoice;
 }
 
 export interface CrsResult {
@@ -85,6 +105,8 @@ export const defaultProfile = (): Profile => ({
   hasSecondLanguage: false,
   secondLanguage: emptyLanguage(),
   canadianWork: 0,
+  highWageWork: 'none',
+  jobOffer: 'none',
   foreignWork: 0,
   tradeCertificate: false,
   provincialNomination: false,

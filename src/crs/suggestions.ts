@@ -65,6 +65,18 @@ export function suggestions(p: Profile): Suggestion[] {
     tryIt(`Gain ${years === 1 ? 'one year' : `a ${ordinal(years)} year`} of Canadian work`, 'Skilled (TEER 0–3) work in Canada adds core points and multiplies with your education and foreign experience.', { ...p, canadianWork: years });
   }
 
+  // High-wage job offer (from 2026-11-03): suggest the lowest tier that actually raises the score.
+  const tiers = ['1.3x', '1.5x', '2x'] as const;
+  for (const tier of tiers.slice(tiers.indexOf(p.jobOffer as (typeof tiers)[number]) + 1)) {
+    const before = out.length;
+    tryIt(
+      `Job offer in a ${tier.replace('x', '×')} median-wage occupation`,
+      'An offer in a high-wage occupation (no LMIA needed) earns 50, 70 or 100 points by wage tier. It replaces your Canadian work points when higher.',
+      { ...p, jobOffer: tier },
+    );
+    if (out.length > before) break;
+  }
+
   if (p.education && ['none', 'secondary', 'oneYear', 'twoYear', 'bachelors'].includes(p.education)) {
     tryIt("Complete a master's degree", 'A graduate credential moves you into the top education bracket.', { ...p, education: 'masters' });
   }

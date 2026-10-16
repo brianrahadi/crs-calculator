@@ -1,4 +1,5 @@
 import { TESTS } from './crs/language';
+import { WAGE_TIERS } from './crs/highWage';
 import type { CanadianStudy, Education, LanguageResult, Profile } from './crs/types';
 import { defaultProfile, emptyLanguage, SKILLS } from './crs/types';
 
@@ -97,6 +98,8 @@ export function sanitize(v: unknown): Profile {
     hasSecondLanguage: bool(p.hasSecondLanguage, false),
     secondLanguage: sanitizeLanguage(p.secondLanguage),
     canadianWork: int(p.canadianWork, 0, 5, 0),
+    highWageWork: oneOf(p.highWageWork, WAGE_TIERS, 'none'),
+    jobOffer: oneOf(p.jobOffer, WAGE_TIERS, 'none'),
     foreignWork: int(p.foreignWork, 0, 3, 0),
     tradeCertificate: bool(p.tradeCertificate, false),
     provincialNomination: bool(p.provincialNomination, false),
