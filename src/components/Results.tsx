@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { suggestions } from '../crs/suggestions';
 import type { CrsResult, Profile } from '../crs/types';
 import type { CategorySummary, Draw } from '../draws/aggregator';
@@ -9,6 +9,8 @@ import type { DrawsState } from '../draws/useDraws';
 import type { Scenario } from '../scenarios';
 import { CompareScenarios } from './CompareScenarios';
 import { Distribution } from './Distribution';
+import { OPTION_LABEL, OPTION_LETTER } from './LmiChoice';
+import { RulesComparison } from './RulesComparison';
 import { daysAgo, formatDate } from './format';
 import { ScoreRing } from './ScorePanel';
 
@@ -75,6 +77,8 @@ export function Results({
           </div>
         </div>
       </section>
+
+      <RulesComparison profile={profile} benchmark={benchmark} />
 
       <section className="card">
         <h3>Your score vs. recent draws</h3>
@@ -145,16 +149,40 @@ export function Results({
                 </tr>
               </thead>
               <tbody>
-                {s.lines.map((l) => (
-                  <tr key={l.label} className={l.points === 0 ? 'zero' : ''}>
-                    <th scope="row">
-                      {l.label}
-                      {l.hint && <small className="line-hint">{l.hint}</small>}
-                    </th>
-                    <td>{l.points}</td>
-                    <td className="muted">/ {l.max}</td>
+                {s.choice && (
+                  <tr className="lmi-rule">
+                    <td colSpan={3}>Higher of option A or B — only one counts</td>
                   </tr>
-                ))}
+                )}
+                {s.lines.map((l, i) => {
+                  const groupStart = s.choice && l.option && s.lines[i - 1]?.option !== l.option;
+                  const unused = s.choice && l.option && s.choice.counted !== l.option;
+                  return (
+                    <Fragment key={l.label}>
+                      {groupStart && s.choice && l.option && (
+                        <tr className={`lmi-group ${s.choice.counted === l.option ? 'counted' : s.choice.counted ? 'unused' : ''}`}>
+                          <th scope="row">
+                            {l.option === 'offer' && <span className="lmi-or-inline">or</span>}
+                            Option {OPTION_LETTER[l.option]} · {OPTION_LABEL[l.option]}
+                          </th>
+                          <td>{s.choice[l.option]}</td>
+                          <td>
+                            {s.choice.counted === l.option ? <em className="lmi-badge counted">✓ Counts</em>
+                              : s.choice.counted ? <em className="lmi-badge unused">Not counted</em> : null}
+                          </td>
+                        </tr>
+                      )}
+                      <tr className={`${l.points === 0 ? 'zero' : ''} ${l.option ? 'lmi-line' : ''} ${unused ? 'unused' : ''}`}>
+                        <th scope="row">
+                          {l.label}
+                          {l.hint && <small className="line-hint">{l.hint}</small>}
+                        </th>
+                        <td>{l.points}</td>
+                        <td className="muted">/ {l.max}</td>
+                      </tr>
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           ))}

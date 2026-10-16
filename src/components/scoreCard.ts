@@ -1,3 +1,4 @@
+import { CRS_MAX } from '../crs/calculate';
 import type { CrsResult } from '../crs/types';
 import type { Draw } from '../draws/aggregator';
 import { CATEGORY_LABELS } from '../draws/aggregator';
@@ -209,7 +210,7 @@ export async function renderScoreCard(result: CrsResult, benchmark: Draw | undef
   ctx.stroke();
   ctx.strokeStyle = C.accent;
   ctx.beginPath();
-  ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (Math.min(result.total, 1200) / 1200) * Math.PI * 2);
+  ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (Math.min(result.total, CRS_MAX) / CRS_MAX) * Math.PI * 2);
   ctx.stroke();
   ctx.textAlign = 'center';
   ctx.fillStyle = C.text;
@@ -217,7 +218,7 @@ export async function renderScoreCard(result: CrsResult, benchmark: Draw | undef
   ctx.fillText(String(result.total), cx, cy - 6);
   ctx.fillStyle = C.text3;
   ctx.font = `400 17px ${FONT}`;
-  ctx.fillText('of 1,200', cx, cy + 44);
+  ctx.fillText(`of ${CRS_MAX.toLocaleString('en-CA')}`, cx, cy + 44);
 
   // Benchmark under the ring
   if (benchmark) {

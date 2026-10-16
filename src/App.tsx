@@ -51,6 +51,7 @@ export default function App() {
   const active = store.scenarios.find((s) => s.id === store.activeId)!;
   const profile = active.profile;
   const result = useMemo(() => calculate(profile), [profile]);
+  const beforeTotal = useMemo(() => calculate(profile, 'pre2026').total, [profile]);
   const steps = stepsFor(profile);
   const step = steps[Math.min(stepIndex, steps.length - 1)];
   const started = profile.age != null;
@@ -262,7 +263,7 @@ export default function App() {
           </div>
 
           <div className="side">
-            <ScorePanel result={result} latest={benchmark} />
+            <ScorePanel result={result} latest={benchmark} before={beforeTotal} />
             {!showResults && (
               <button type="button" className="btn primary block" onClick={openResults}>
                 View full results
@@ -274,7 +275,7 @@ export default function App() {
           {sheetOpen && (
             <div className="sheet-backdrop" onClick={() => setSheetOpen(false)}>
               <div className="sheet" role="dialog" aria-modal="true" aria-label="Score breakdown" onClick={(e) => e.stopPropagation()}>
-                <ScorePanel result={result} latest={benchmark} />
+                <ScorePanel result={result} latest={benchmark} before={beforeTotal} />
                 <button type="button" className="btn primary block" onClick={() => { setSheetOpen(false); openResults(); }}>
                   View full results
                 </button>

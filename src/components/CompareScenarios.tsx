@@ -15,12 +15,13 @@ export function CompareScenarios({
   benchmark: Draw | undefined;
   onSelect: (id: string) => void;
 }) {
-  const rows = scenarios.map((s) => ({ s, r: calculate(s.profile) }));
+  const rows = scenarios.map((s) => ({ s, r: calculate(s.profile), before: calculate(s.profile, 'pre2026').total }));
   const best = Math.max(...rows.map((x) => x.r.total));
   const anySpouse = rows.some((x) => x.r.withSpouse);
-  const sectionIds = (['core', 'spouse', 'transferability', 'additional'] as const).filter((id) => id !== 'spouse' || anySpouse);
-  const titles: Record<'core' | 'spouse' | 'transferability' | 'additional', string> = {
+  const sectionIds = (['core', 'lmi', 'spouse', 'transferability', 'additional'] as const).filter((id) => id !== 'spouse' || anySpouse);
+  const titles: Record<'core' | 'lmi' | 'spouse' | 'transferability' | 'additional', string> = {
     core: 'Core / human capital',
+    lmi: 'Labour market integration',
     spouse: 'Spouse factors',
     transferability: 'Skill transferability',
     additional: 'Additional points',
@@ -60,6 +61,23 @@ export function CompareScenarios({
                 {r.total === best && rows.length > 1 && <small> best</small>}
               </td>
             ))}
+          </tr>
+          <tr className="before">
+            <th scope="row">Before Nov 3 rules</th>
+            {rows.map(({ s, before }) => (
+              <td key={s.id} className={s.id === activeId ? 'active' : ''}>{before}</td>
+            ))}
+          </tr>
+          <tr>
+            <th scope="row">Change from new rules</th>
+            {rows.map(({ s, r, before }) => {
+              const d = r.total - before;
+              return (
+                <td key={s.id} className={`${s.id === activeId ? 'active' : ''} ${d > 0 ? 'good' : d < 0 ? 'bad' : ''}`}>
+                  {d > 0 ? `+${d}` : d < 0 ? `−${-d}` : '—'}
+                </td>
+              );
+            })}
           </tr>
           {benchmark && (
             <tr>

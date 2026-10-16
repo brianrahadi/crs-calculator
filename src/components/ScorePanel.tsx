@@ -1,9 +1,10 @@
+import { CRS_MAX } from '../crs/calculate';
 import type { CrsResult } from '../crs/types';
 import type { Draw } from '../draws/aggregator';
 import { CATEGORY_LABELS } from '../draws/aggregator';
 import { formatDate } from './format';
 
-export function ScoreRing({ total, size = 148, max = 1200 }: { total: number; size?: number; max?: number }) {
+export function ScoreRing({ total, size = 148, max = CRS_MAX }: { total: number; size?: number; max?: number }) {
   const stroke = 10;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -33,7 +34,7 @@ export function ScoreRing({ total, size = 148, max = 1200 }: { total: number; si
   );
 }
 
-export function ScorePanel({ result, latest }: { result: CrsResult; latest: Draw | undefined }) {
+export function ScorePanel({ result, latest, before }: { result: CrsResult; latest: Draw | undefined; before?: number }) {
   const gap = latest ? result.total - latest.crs : null;
   return (
     <aside className="score-panel" aria-label="Your CRS score">
@@ -47,6 +48,16 @@ export function ScorePanel({ result, latest }: { result: CrsResult; latest: Draw
               <small>
                 {CATEGORY_LABELS[latest.category]} · {latest.crs} on {formatDate(latest.date)}
               </small>
+            </p>
+          )}
+          {before != null && (
+            <p className="rules-before">
+              Before Nov 3: <strong>{before}</strong>
+              {before !== result.total && (
+                <span className={result.total > before ? 'good' : 'bad'}>
+                  {result.total > before ? `+${result.total - before}` : `−${before - result.total}`} new rules
+                </span>
+              )}
             </p>
           )}
         </div>
@@ -64,6 +75,14 @@ export function ScorePanel({ result, latest }: { result: CrsResult; latest: Draw
             <div className="meter" aria-hidden>
               <span style={{ width: `${(s.points / s.max) * 100}%` }} />
             </div>
+            {s.choice && (
+              <p className="lmi-mini">
+                Higher of{' '}
+                <span className={s.choice.counted === 'work' ? 'on' : ''}>A · Canadian work {s.choice.work}</span>
+                {' or '}
+                <span className={s.choice.counted === 'offer' ? 'on' : ''}>B · job offer {s.choice.offer}</span>
+              </p>
+            )}
           </li>
         ))}
       </ul>

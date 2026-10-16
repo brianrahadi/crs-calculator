@@ -1,8 +1,18 @@
-import { EDUCATION_LABELS, hasSpouseFactor } from '../crs/calculate';
+import { calculate, EDUCATION_LABELS, hasSpouseFactor } from '../crs/calculate';
 import { isComplete, languageOf } from '../crs/language';
-import type { Education, Profile } from '../crs/types';
+import { HIGH_WAGE_LIST_URL, HIGH_WAGE_WORK_POINTS, JOB_OFFER_POINTS } from '../crs/highWage';
+import type { Education, Profile, WageTier } from '../crs/types';
 import { Field, OptionList, Segmented, Toggle } from './controls';
 import { LanguageInput } from './LanguageInput';
+import { LmiChoice } from './LmiChoice';
+import { OccupationLookup } from './OccupationLookup';
+
+const tierOptions = (points: Record<WageTier, number>, none: string) =>
+  (['none', '1.3x', '1.5x', '2x'] as WageTier[]).map((t) => ({
+    value: t,
+    label: t === 'none' ? none : t.replace('x', '×'),
+    sub: t === 'none' ? undefined : `+${points[t]}`,
+  }));
 
 export interface Step {
   id: string;
@@ -143,17 +153,61 @@ export function StepBody({ step, p, set }: { step: string; p: Profile; set: (pat
       );
     }
 
-    case 'work':
+    case 'work': {
+      const lmi = calculate(p).sections.find((s) => s.id === 'lmi')!;
       return (
         <>
-          <Field label="Skilled work experience in Canada" hint="Authorized work in Canada within the past 10 years.">
-            <Segmented
-              label="Canadian work experience"
-              value={p.canadianWork}
-              onChange={(canadianWork) => set({ canadianWork })}
-              options={[0, 1, 2, 3, 4, 5].map((y) => ({ value: y, label: y === 0 ? 'None' : y === 5 ? '5+ yrs' : `${y} yr${y > 1 ? 's' : ''}` }))}
-            />
-          </Field>
+          <LmiChoice
+            choice={lmi.choice!}
+            max={lmi.max}
+            work={
+              <>
+                <Field label="Skilled work experience in Canada" hint="Authorized work in Canada within the past 10 years. Also counts toward skill transferability and CEC eligibility, whichever option wins.">
+                  <Segmented
+                    label="Canadian work experience"
+                    value={p.canadianWork}
+                    onChange={(canadianWork) => set({ canadianWork })}
+                    options={[0, 1, 2, 3, 4, 5].map((y) => ({ value: y, label: y === 0 ? 'None' : y === 5 ? '5+ yrs' : `${y} yr${y > 1 ? 's' : ''}` }))}
+                  />
+                </Field>
+                {p.canadianWork >= 1 && (
+                  <Field
+                    label="12+ months in a high-wage occupation? (× median wage)"
+                    hint={
+                      <>
+                        Occupations whose Canada-wide median wage is at least 1.3× the average, on{' '}
+                        <a href={HIGH_WAGE_LIST_URL} target="_blank" rel="noreferrer">IRCC's list</a>. Jobs can be combined — pick the
+                        highest tier where your months at that tier or above add up to 12.
+                      </>
+                    }
+                  >
+                    <Segmented
+                      label="High-wage Canadian work experience"
+                      value={p.highWageWork}
+                      onChange={(highWageWork) => set({ highWageWork })}
+                      options={tierOptions(HIGH_WAGE_WORK_POINTS, 'No')}
+                    />
+                    <OccupationLookup label="Look up your Canadian occupation" onPick={(highWageWork) => set({ highWageWork })} />
+                  </Field>
+                )}
+              </>
+            }
+            offer={
+              <Field label="Job offer occupation's wage tier (× median wage)">
+                <Segmented
+                  label="Job offer"
+                  value={p.jobOffer}
+                  onChange={(jobOffer) => set({ jobOffer })}
+                  options={tierOptions(JOB_OFFER_POINTS, 'None')}
+                />
+                <OccupationLookup label="Look up the job offer's occupation" onPick={(jobOffer) => set({ jobOffer })} />
+              </Field>
+            }
+          />
+          <div className="callout">
+            <strong>New rules from November 3, 2026.</strong> Until IRCC updates the profile form, candidates with a
+            qualifying job offer answer “yes” to the positive-LMIA question.
+          </div>
           <Field label="Skilled work experience outside Canada" hint="Foreign experience in the past 10 years — it counts through skill transferability.">
             <Segmented
               label="Foreign work experience"
@@ -175,6 +229,7 @@ export function StepBody({ step, p, set }: { step: string; p: Profile; set: (pat
           />
         </>
       );
+    }
 
     case 'spouse':
       return (
@@ -224,8 +279,8 @@ export function StepBody({ step, p, set }: { step: string; p: Profile; set: (pat
             onChange={(sibling) => set({ sibling })}
           />
           <div className="callout">
-            <strong>Job offers no longer add points.</strong> IRCC removed arranged-employment points from the CRS on
-            March 25, 2025. French-language points are calculated automatically from your test results.
+            <strong>Job offers are on the Work step.</strong> From November 3, 2026, an offer in a high-wage occupation earns
+            50–100 points. French-language points are calculated automatically from your test results.
           </div>
         </>
       );
